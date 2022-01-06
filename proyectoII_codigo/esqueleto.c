@@ -137,7 +137,7 @@ int main(int argc, char* argv[])
 		  {
 			  msgrcv(msgid, &message, sizeof(message), 0, 0);
 			  sscanf(message.mesg_text,"%d",&pid); // Tendrás que guardar esa pid
-			  printf("\nMe ha enviado un mensaje el hijo %d\n",pid);
+              
 		  }
 		  
 			sleep(60); // Esto es solo para que el esqueleto no muera de inmediato, quitar en el definitivo
