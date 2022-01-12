@@ -38,11 +38,12 @@
 #define CADA_CUANTOS_ESCRIBO 5
 
 // rango de búsqueda, desde BASE a BASE+RANGO
-//#define BASE 800000000
-//#define RANGO 2000
+#define BASE 800000000
+#define RANGO 2000
 
-#define BASE 3
-#define RANGO 1000
+// RANGO Y BASE AUXILIARES PARA PRUEBAS
+//#define BASE 3
+//#define RANGO 1000
 
 // Intervalo del temporizador para RAIZ
 #define INTERVALO_TIMER 5
@@ -85,6 +86,9 @@ FILE *ficheroNumerosPrimos;
 int *pidhijos;
 int *numerosParaCalculadores;
 int pidraiz;
+clock_t tInicioCalculo;
+clock_t tFinalCalculo;
+double tCalculo;
 
 /* Función Principal Main */
 int main(int argc, char* argv[])
@@ -114,9 +118,7 @@ int main(int argc, char* argv[])
     int numerosPrimosEncontrados;
     char *informes;
     FILE *ficheroCuentaPrimos;
-    clock_t tInicioCalculo;
-    clock_t tFinalCalculo;
-    double tCalculo;
+    double tCalculoAuxiliar;
 
     // Control de entrada, después del nombre del script debe figurar el número de hijos y el parámetro verbosity
     if(argc <= 1){
@@ -249,6 +251,7 @@ int main(int argc, char* argv[])
             inicioRango = BASE;
          
             tCalculo = 0;
+            tCalculoAuxiliar = 0;
             tInicioCalculo = clock();
 
             for(int j = 0; j < numhijos; j++){
@@ -298,11 +301,13 @@ int main(int argc, char* argv[])
                         break;
 
                     case COD_FIN:
-                        sscanf(message.mesg_text, "%d", &pidCalculador);
+                        sscanf(message.mesg_text, "%d %lf", &pidCalculador, &tCalculoAuxiliar);
                         numeroCalculadoresFinalizados++;
                         informes = formateaPrimoEncontrado("El Calculador ", pidCalculador, " ha finalizado su tarea, restantes: ", numhijos - numeroCalculadoresFinalizados);
                         Informar(informes, verbosity);
                         free(informes);
+                        tCalculo += tCalculoAuxiliar;
+                        tCalculoAuxiliar = 0;
                         break;
 
                     default:
@@ -314,7 +319,7 @@ int main(int argc, char* argv[])
             }while(numeroCalculadoresFinalizados < numhijos);
 
             tFinalCalculo = clock();
-            tCalculo = ((double)(tFinalCalculo - tInicioCalculo)) / CLOCKS_PER_SEC;
+            tCalculo += ((double)(tFinalCalculo - tInicioCalculo)) / CLOCKS_PER_SEC;
 
 		    // Borrar la cola de mensajería, muy importante. No olvides cerrar los ficheros
             printf("INFO: Todos los Calculadores han finalizado su trabajo.\n");
@@ -353,7 +358,7 @@ int Comprobarsiesprimo(long int numero){
 
     int esPrimo = 1;
 
-    for(int i = 2; i <= (numero / 2); i++)
+    for(int i = 2; esPrimo && i <= (numero / 2); i++)
         if(numero % i == 0)
             esPrimo = 0;
 
@@ -484,6 +489,11 @@ void mensajesHandler(int signal){
 
             //printf("Rango recibido para %d: %d - %d\n", getpid(), inicioRango, finalRango);
 
+            sleep(5);
+
+            tCalculo = 0;
+            tInicioCalculo = clock();
+
             for(long int i = inicioRango; i <= finalRango; i++){
 
                 esPrimo = Comprobarsiesprimo(i);
@@ -491,11 +501,13 @@ void mensajesHandler(int signal){
 
                     //printf("Primo encontrado: %d\n", i);
 
-                    message.mesg_type = COD_RESULTADOS;
-                    sprintf(message.mesg_text, "%d %d", getpid(), i);
-                    msgErr = msgsnd(msgid, &message, sizeof(message), IPC_NOWAIT);
-                    if(msgErr == -1)
-                        perror("ERROR: Ha ocurrido un error al enviar el mensaje de nuevo número primo al servidor:");
+                    do{
+                        message.mesg_type = COD_RESULTADOS;
+                        sprintf(message.mesg_text, "%d %d", getpid(), i);
+                        msgErr = msgsnd(msgid, &message, sizeof(message), IPC_NOWAIT);
+                        if(msgErr == -1)
+                            perror("ERROR: Ha ocurrido un error al enviar el mensaje de nuevo número primo al servidor:");
+                    }while(msgErr == -1);
 
                     //printf("Mandamos desde el calculador %d al servidor %d el primo %d\n", getpid(), getppid(), i);
 
@@ -503,11 +515,17 @@ void mensajesHandler(int signal){
 
             }
 
-            message.mesg_type = COD_FIN;
-            sprintf(message.mesg_text, "%d", getpid());
-            msgErr = msgsnd(msgid, &message, sizeof(message), IPC_NOWAIT);
-            if(msgErr == -1)
-                perror("ERROR: Ha ocurrido un error al enviar el mensaje de finalización al servidor: ");
+            tFinalCalculo = clock();
+            tCalculo = ((double)(tFinalCalculo - tInicioCalculo)) / CLOCKS_PER_SEC;
+
+            do{
+                message.mesg_type = COD_FIN;
+                sprintf(message.mesg_text, "%d %lf", getpid(), tCalculo);
+                msgErr = msgsnd(msgid, &message, sizeof(message), IPC_NOWAIT);
+                if(msgErr == -1)
+                    perror("ERROR: Ha ocurrido un error al enviar el mensaje de finalización al servidor: ");
+            }
+            while(msgErr == -1);
 
             exit(0);
 
