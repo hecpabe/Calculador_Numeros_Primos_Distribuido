@@ -8,7 +8,7 @@
  */
 
 /* Instrucciones de Preprocesado */
-// Inclusión de Bibliotecas del enunciado
+// Includes del enunciado
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -19,11 +19,11 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 
-// Inclusión de Bibliotecas adicionales
+// Includes adicionales
 #include <string.h>
 #include <math.h>
 
-// Declaraciones Constantes del enunciado
+// Defines del enunciado
 #define LONGITUD_MSG 100           // Payload del mensaje
 #define LONGITUD_MSG_ERR 200       // Mensajes de error por pantalla
 
@@ -63,59 +63,62 @@ typedef struct {
 } T_MESG_BUFFER;
 
 // Prototipado de funciones del enunciado
-int Comprobarsiesprimo(long int numero);                                                // Función con la que comprobamos si un número es primo
-void Informar(char *texto, int verboso);                                                // Función con la que lanzamos mensajes por consola
-void Imprimirjerarquiaproc(int pidraiz,int pidservidor, int *pidhijos, int numhijos);   // Función con la que mostramos la jerarquía de procesos
-int ContarLineas();                                                                     // Función con la que contamos las líneas del fichero de primos
-static void alarmHandler(int signo);                                                    // Manejador de alarmas
+int Comprobarsiesprimo(long int numero);
+void Informar(char *texto, int verboso);
+void Imprimirjerarquiaproc(int pidraiz,int pidservidor, int *pidhijos, int numhijos);
+int ContarLineas();
+static void alarmHandler(int signo);
 
 // Prototipado de funciones adicionales
-int transformaStringAEntero(char *cadenaCaracteres);                                                                    // Función con la que pasamos un string numérico a entero
-void mensajesHandler(int signal);                                                                                       // Manejador de señales
-char *formateaPrimoEncontrado(char *cadenaCaracteres, int pidCalculador, char *cadenaCaracteres2, int primoEncontrado); // Función con la que formateamos los mensajes para la función Informa()
-int vuelcaPrimoAFichero(long int numeroPrimo, FILE *fichero);                                                           // Función con la que volcamos un primo encontrado al fichero
-int vuelcaCantidadPrimos(long int cantidadPrimos);                                                                      // Función con la que volcamos la cantidad de primos al fichero
+int transformaStringAEntero(char *cadenaCaracteres);
+void mensajesHandler(int signal);
+char *formateaPrimoEncontrado(char *cadenaCaracteres, int pidCalculador, char *cadenaCaracteres2, int primoEncontrado);
+int vuelcaPrimoAFichero(long int numeroPrimo, FILE *fichero);
+int vuelcaCantidadPrimos(long int cantidadPrimos);
 
 // Variables Globales
-T_MESG_BUFFER message;          // Variable de mensaje que vamos a intercambiar
-FILE *ficheroNumerosPrimos;     // Puntero a ficheros que apunta al fichero en el que almacenaremos los números primos encontraodos
-clock_t tInicioCalculo;         // Instante en el que iniciamos el cálculo de números primos
-clock_t tFinalCalculo;          // Instante en el que finalizamos el cálculo de números primos
-double tCalculo;                // Tiempo que se ha estado calculando números primos
-int msgid;                      // Identificador de la cola de mensajería
-int inicioRango;                // Variable con la que indicamos el inicio de rango de números a calcular para los calculadores
-int finalRango;                 // Variable con la que indicamos el final del rango de números a calcular para los calculadores
-int *pidhijos;                  // Puntero a enteros en el que almacenaremos los PID de los calculadores
-int *numerosParaCalculadores;   // Vector de enteros con el que le pasaremos a los calculadores el rango que le corresponde a cada uno
-int pidraiz;                    // PID del proceso RAÍZ
+int cuentasegs;                   // Variable para el cómputo del tiempo total
+T_MESG_BUFFER message;
+int msgid;
+int inicioRango;
+int finalRango;
+FILE *ficheroNumerosPrimos;
+int *pidhijos;
+int *numerosParaCalculadores;
+int pidraiz;
+clock_t tInicioCalculo;
+clock_t tFinalCalculo;
+double tCalculo;
 
 /* Función Principal Main */
 int main(int argc, char* argv[])
 {
-    // Variables para bucles
 	int i,j;
+	long int numero;
+	long int numprimrec;
+    long int nbase;
+    int nrango;
+    int nfin;
+    time_t tstart,tend; 
 	
-    // Identificadores
-	key_t key;                                          // Clave para crear la cola de mensajería
-    int pid, pidservidor, parentpid, mypid, pidcalc;    // Diferentes PID para los procesos
-    int pidCalculador;                                  // Variable en la que recogemos el PID del calculador que nos manda un mensaje
+	key_t key;
+    int pid, pidservidor, parentpid, mypid, pidcalc;
+    int intervalo,inicuenta;
+    int verbosity;
+    char info[LONGITUD_MSG_ERR];
+    FILE *fsal, *fc;
+    int numhijos;
 
-    // Parámetros
-    int verbosity;  // Parámetro de información, si se le pasa al programa muestra más información
-    int numhijos;   // Cantidad de calculadores que se crean
-
-    // Números y primos
-    int numerosAComprobar;              // Cantidad total de números que hay que comprobar si son primos o no (RANGO + 1)
-    int numerosPorCalculador;           // Cantidad total de números que le corresponden calcular a cada calculador
-    long int primoEncontrado;           // Variable en la que recogemos un nuevo número primo encontrado
-    int numeroCalculadoresFinalizados;  // Cantidad de calculadores que han finalizado su trabajo
-    int numerosPrimosEncontrados;       // Cantidad de números primos que se han encontrado en total
-
-    // Otras variables
-    int msgErr;                 // Código de error que recogemos en el intercambio de mensajes
-    char *informes;             // Cadena de caracteres en la que introducimos informes
-    FILE *ficheroCuentaPrimos;  // Puntero a fichero que apunta al fichero que lleva la cuenta (de 5 en 5) de los primos encontrados
-    double tCalculoAuxiliar;    // Variable en la que recogemos el tiempo que ha tardado un calculador en calcular sus números
+    int numerosAComprobar;
+    int numerosPorCalculador;
+    int msgErr;
+    int pidCalculador;
+    long int primoEncontrado;
+    int numeroCalculadoresFinalizados;
+    int numerosPrimosEncontrados;
+    char *informes;
+    FILE *ficheroCuentaPrimos;
+    double tCalculoAuxiliar;
 
     // Control de entrada, después del nombre del script debe figurar el número de hijos y el parámetro verbosity
     if(argc <= 1){
@@ -125,12 +128,10 @@ int main(int argc, char* argv[])
 
     verbosity = 0;
 
-    // Comprobamos si se introduce el parámetro verbosity
     if(argc > 2)
         if(strcmp(argv[2], "-v") == 0)
             verbosity = 1;
 
-    // Comprobamos que se haya introducido de forma correcta el parámetro de la cantidad de calculadores a crear
     for(int i = 0; i < strlen(argv[1]); i++){
         if(argv[1][i] < '0' || argv[1][i] > '9'){
             printf("ERROR (COD: %d): Se han introducido caracteres no numéricos en el parámetro del número de calculadores.", ERR_ENTRADA_ERRONEA);
@@ -138,14 +139,13 @@ int main(int argc, char* argv[])
         }
     }
 
-    // Asignamos el manejador para la señal CTRL + C (esto es para asegurarnos de que se cierra la cola de mensajería se el usuario manda esta señal)
     if(signal(SIGINT, mensajesHandler) == SIG_ERR)
         printf("\nERROR: Ha ocurrido un error al intentar capturar la señal SIGINT.\n");
 
-    // Recogemos el número de calculadores a crear
     numhijos = transformaStringAEntero(argv[1]);
 
-    // Limpiamos el fichero que lleva la cuenta de cuantos números primos se han encontrado
+    //numhijos = 2;     // SOLO para el esqueleto, en el proceso  definitivo vendrá por la entrada
+
     ficheroCuentaPrimos = fopen(NOMBRE_FICH_CUENTA, "w");
     msgErr = fprintf(ficheroCuentaPrimos, "%d", 0);
     fclose(ficheroCuentaPrimos);
@@ -157,7 +157,6 @@ int main(int argc, char* argv[])
     
     if (pid == 0)       // Rama del hijo de RAIZ (SERVER)
     {
-        // Recogemos los pid
 		pid = getpid();
 		pidservidor = pid;
 		mypid = pidservidor;	   
@@ -168,7 +167,6 @@ int main(int argc, char* argv[])
 		  exit( 1 );
 		}
 		
-        // Mostramos la clave para la cola
 		printf( "Server: System V IPC key = %u\n", key );
 
         // Creación de la cola de mensajería
@@ -176,12 +174,9 @@ int main(int argc, char* argv[])
 		  perror( "Fallo al crear la cola de mensajes" );
 		  exit( 2 );
 		}
-
-        // Mostramos la cola creada
 		printf("Server: Message queue id = %u\n", msgid );
 
         i = 0;
-
         // Creación de los procesos CALCuladores
 		while(i < numhijos) {
 		 if (pid > 0) { // Solo SERVER creará hijos
@@ -195,11 +190,10 @@ int main(int argc, char* argv[])
 		 i++;  // Número de hijos creados
 		}
 
-        // Procesos hijos de SERVIDOR (CALCULADORES)
+        // AQUI VA LA LOGICA DE NEGOCIO DE CADA CALCulador. 
 		if (mypid != pidservidor)
 		{
 
-            // Asignamos el manejador para la señal SIGUSR1
             if(signal(SIGUSR1, mensajesHandler) == SIG_ERR)
                 printf("\nERROR (COD: %d): Error al capturar SIGUSR1\n", ERR_RECV);
 
@@ -208,13 +202,21 @@ int main(int argc, char* argv[])
 			sprintf(message.mesg_text,"%d",mypid);
 			msgsnd( msgid, &message, sizeof(message), IPC_NOWAIT);
 
+		
+			// Un montón de código por escribir
+            // Recogemos la asignación de rango por parte del servidor
+
+			sleep(60); // Esto es solo para que el esqueleto no muera de inmediato, quitar en el definitivo
+
+			//exit(0);
 		}
 		
 		// SERVER
+		
 		else
 		{
 
-		    // Pedimos memoria dinámica para los hijos
+		    // Pide memoria dinámica para crear la lista de pids de los hijos CALCuladores
             pidhijos = (int*)malloc(sizeof(int) * numhijos);
             numerosParaCalculadores = (int*)malloc(sizeof(int) * numhijos);
 		  
@@ -222,11 +224,15 @@ int main(int argc, char* argv[])
 		    for (j=0; j <numhijos; j++)
 		    {
 			    msgrcv(msgid, &message, sizeof(message), 0, 0);
-			    sscanf(message.mesg_text,"%d",&pid); 
+			    sscanf(message.mesg_text,"%d",&pid); // Tendrás que guardar esa pid
                 pidhijos[j] = pid;
 			    printf("\nMe ha enviado un mensaje el hijo %d\n",pid);
 		    }
 		  
+			sleep(5); // Esto es solo para que el esqueleto no muera de inmediato, quitar en el definitivo
+
+		  
+		    // Mucho código con la lógica de negocio de SERVER
             // Mostramos la jerarquía de procesos creada
 		    Imprimirjerarquiaproc(pidraiz, pidservidor, pidhijos, numhijos);
 
@@ -235,67 +241,54 @@ int main(int argc, char* argv[])
             numerosAComprobar = RANGO + 1;
             numerosPorCalculador = numerosAComprobar / numhijos;
             
-            // Asignamos a cada calculador que tiene que calcular = (números a calcular) / (número de calculadores)
             for(int j = 0; j < numhijos; j++)
                 numerosParaCalculadores[j] = numerosPorCalculador;
 
-            // Si son impares, asignamos 1 más por cada unidad del resto que sobre a los n primeros
             for(int j = 0; j < (numerosAComprobar % numhijos); j++)
                 numerosParaCalculadores[j] += 1;
 
-            // Inicio del rango que se le va a pasar a los calculadores
+            // Mandamos a cada calculador su rango para calcular
             inicioRango = BASE;
          
-            // Iniciamos el contador
             tCalculo = 0;
             tCalculoAuxiliar = 0;
             tInicioCalculo = clock();
 
-            // Le pasamos a cada hijo el rango que debe calcular
             for(int j = 0; j < numhijos; j++){
 
-                // Preparamos el mensaje y lo enviamos
+                //printf("Enviando rango para %d: %d - %d\n", pidhijos[j], inicioRango, inicioRango + numerosParaCalculadores[j]);
+
+                // Preparamos el mensaje
                 message.mesg_type = COD_LIMITES;
                 sprintf(message.mesg_text, "%d %d", inicioRango, inicioRango + numerosParaCalculadores[j] - 1);
                 msgErr = msgsnd(msgid, &message, sizeof(message), IPC_NOWAIT);
                 if(msgErr == -1)
                     perror("Fallo al mandar mensaje de límites: ");
+                //else
+                    //printf("Mensaje enviado...\n");
 
-                // Mandamos una señal al calculador para indicarle de que ya le hemos pasado su rango y que lo lea
+                // Mandamos al proceso destino la señal de que le hemos mandado un mensaje
                 kill(pidhijos[j], SIGUSR1);
 
-                // Saltamos al siguiente inicio de rango
                 inicioRango += numerosParaCalculadores[j];
 
             }
 
-            // Espermaos para asegurarnos que todos los calculadores hayan leído su rango
             sleep(5);
 
-            // Inicializamos las variables que vamos a usar
             pidCalculador = 0;
             primoEncontrado = 0;
             numeroCalculadoresFinalizados = 0;
             numerosPrimosEncontrados = 0;
             informes = NULL;
-
-            // Abrimos el fichero para lectura y escritura sobrescribiendo lo que ya contiene
-            ficheroNumerosPrimos = fopen(NOMBRE_FICH, "w+");
+            ficheroNumerosPrimos = fopen(NOMBRE_FICH, "w+");    // Abrimos el fichero para lectura y escritura sobrescribiendo lo que ya contiene
             
-            // No paramos de comprobar si recibimos mensajes hasta que redibamos todos los mensajes de finalización de los calculadores
             do{
 
-                // Recibimos el siguiente mensaje en la cola
                 msgrcv(msgid, &message, sizeof(message), 0, 0);
                 switch(message.mesg_type){
 
-                    // Si es del hallazgo de un nuevo primo
                     case COD_RESULTADOS:
-                        /*
-                            Recogemos los datos, aumentamos el contador de primos encontrados, mandamos el informe de que se ha encontrado
-                            un nuevo primo, volcamos el primo encontrado al fichero correspondiente y en caso de que la cantidad de primos
-                            encontrados sea múltiplo de 5 lo volcamos en el fichero de cuenta de primos también
-                        */
                         sscanf(message.mesg_text, "%d %d", &pidCalculador, &primoEncontrado);
                         numerosPrimosEncontrados++;
                         informes = formateaPrimoEncontrado("El Calculador ", pidCalculador, " ha encontrado el primo: ", primoEncontrado);
@@ -307,13 +300,7 @@ int main(int argc, char* argv[])
                             vuelcaCantidadPrimos(numerosPrimosEncontrados);
                         break;
 
-                    // Si es la finalización de un calculador
                     case COD_FIN:
-                        /*
-                            Recogemos los datos (PID del calculador que ha finalizado y el tiempo que ha tardado en calcular su rango)
-                            incrementamos la cantidad de calculadores que han finalizado, mandamos el informe de que ha finalizado y
-                            sumamos el tiempo que ha tardado en calcular su rango al tiempo general
-                        */
                         sscanf(message.mesg_text, "%d %lf", &pidCalculador, &tCalculoAuxiliar);
                         numeroCalculadoresFinalizados++;
                         informes = formateaPrimoEncontrado("El Calculador ", pidCalculador, " ha finalizado su tarea, restantes: ", numhijos - numeroCalculadoresFinalizados);
@@ -323,7 +310,6 @@ int main(int argc, char* argv[])
                         tCalculoAuxiliar = 0;
                         break;
 
-                    // Si es otro tipo de mensaje mostramos error
                     default:
                         printf("ERROR: El receptor de mensajes del server se ha encontrado con un mensaje que no ha sabido tratar.\n");
                         break;
@@ -332,54 +318,46 @@ int main(int argc, char* argv[])
 
             }while(numeroCalculadoresFinalizados < numhijos);
 
-            // Sumamos el tiempo que ha tardado el proceso servidor
             tFinalCalculo = clock();
             tCalculo += ((double)(tFinalCalculo - tInicioCalculo)) / CLOCKS_PER_SEC;
 
-		    // Mostramos la información de que los calculadores han finalizado y el tiempo total empleado
+		    // Borrar la cola de mensajería, muy importante. No olvides cerrar los ficheros
             printf("INFO: Todos los Calculadores han finalizado su trabajo.\n");
             printf("INFO: Tiempo total de cálculo: %lf segundos.\n", tCalculo);
-            
-            // Cerramos la cola de mensajería
+            //printf("SE CIERRA LA COLA DE MENSAJERÍA.\n");
 		    msgctl(msgid,IPC_RMID,NULL);
 
-            // Cerramos el fichero en el que volcamos los primos que encontramos
             fclose(ficheroNumerosPrimos);
 
-            // Liberamos la memoria dinámica pedida
             free(pidhijos);
             free(numerosParaCalculadores);
 
-            // Finalizamos la ejecución del proceso servidor
             exit(0);
 		  
 	   }
     }
 
-    // Proceso padre, RAÍZ
+    // Rama de RAIZ, proceso primigenio
+    
     else
     {
 	  
-        // Saltamos la alarma y asignamos su manejador correspondiente
         alarm(INTERVALO_TIMER);
         signal(SIGALRM, alarmHandler);
 
-        // Esperamos a que el servidor finalice su trabajo
         wait(NULL);
 
-        // Mostramos la información final, cuántas líneas tiene el fichero en el que volcamos los primos
         printf("INFO: El programa ha finalizado la tarea, número de líneas del fichero '%s' (números primos encontrados): %d\n", NOMBRE_FICH, ContarLineas());
 
     }
 }
 
 /* Codificación de Funciones */
-// Función con la que comprobamos si un número pasado como argumento es primo o no, retorna 1 si es primo y 0 si no (algoritmo bruteforce)
+// Función con la que comprobamos si un número pasado como argumento es primo o no, retorna 1 si es primo y 0 si no
 int Comprobarsiesprimo(long int numero){
 
     int esPrimo = 1;
 
-    // Recorremos todos los números desde el 2 hasta la mitad del número a comprobar, si es divisible por alguno de ellos no es primo
     for(int i = 2; esPrimo && i <= (numero / 2); i++)
         if(numero % i == 0)
             esPrimo = 0;
@@ -391,7 +369,6 @@ int Comprobarsiesprimo(long int numero){
 // Función con la que mostramos que un nuevo primo se ha encontrado si el parámetro verbosity ha sido introdicido
 void Informar(char *texto, int verboso){
 
-    // Si hay parámetro verbosity mostramos la información
     if(verboso){
         printf(texto);
         printf("\n");
@@ -404,7 +381,6 @@ void Imprimirjerarquiaproc(int pidraiz, int pidservidor, int *pidhijos, int numh
 
     printf("JERARQUÍA DE PROCESOS:\nRAÍZ\tSERVER\tCALCULADORES\n");
 
-    // Mostramos la jerarquía, si es la primera línea mostramos el raíz y el servidor a parte del calculador
     for(int i = 0; i < numhijos; i++){
         if(i == 0)
             printf("%d\t%d\t%d\n", pidraiz, pidservidor, pidhijos[i]);
@@ -418,26 +394,20 @@ void Imprimirjerarquiaproc(int pidraiz, int pidservidor, int *pidhijos, int numh
 static void alarmHandler(int signo)
 {
 
-    // Variables que vamos a usar, el número que hay en el fichero de cuenta de primos y el código de error que obtengamos de la operación
     int nCuentaPrimos = 0;
     int errCode = 0;
 
-    // Abrimos el fichero de cuenta de primos en modo lectura
     FILE *fichero = fopen(NOMBRE_FICH_CUENTA, "r");
 
-    // Leemos la cuenta de primos que contiene
     errCode = fscanf(fichero, "%d", &nCuentaPrimos);
 
-    // Cerramos el fichero
     fclose(fichero);
 
-    // Si ha habido error mostramos el error, en caso contrario mostramos el valor de la cuenta de primos
     if(errCode <= 0)
         printf("ERROR: Ha ocurrido un error al intentar leer el fichero %s\n", NOMBRE_FICH_CUENTA);
     else
         printf("INFO: Valor del fichero '%s': %d\n", NOMBRE_FICH_CUENTA, nCuentaPrimos);
 
-    // Volvemos a hacer saltar la alarma
     alarm(INTERVALO_TIMER);
 
 }
@@ -445,14 +415,11 @@ static void alarmHandler(int signo)
 // Función con la que contamos las líneas del fichero que contiene los números primos encontrados
 int ContarLineas(){
 
-    // Variable en la que almacenaremos el número de líneas que tiene el fichero
     int nLineasFichero = 0;
 
-    // Abrimos el fichero de números primos encontrados
     FILE *fichero = fopen(NOMBRE_FICH, "r");
     char caracterAux = '\0';
 
-    // Recorremos todo el fichero buscando los retornos de carro, cada uno significa que hemos introducido un nuevo número, por lo que llevamos la cuenta
     while(!feof(fichero)){
 
         caracterAux = fgetc(fichero);
@@ -461,10 +428,8 @@ int ContarLineas(){
 
     }
 
-    // Cerramos el fichero
     fclose(fichero);
 
-    // Mostramos el número de líneas del fichero
     return nLineasFichero;
 
 }
@@ -499,43 +464,43 @@ int transformaStringAEntero(char *cadenaCaracteres){
 // Función manejadora de señales
 void mensajesHandler(int signal){
 
-    // Variables del código de error de mensajería, comprobación de un número primo y PID del proceso que manda el mensaje
     int msgErr;
     int esPrimo;
     int pidEmisor;
 
-    // Si recibimos señal SIGUSR1 (la manda el servidor cuando nos manda el rango a comprobar)
+    //printf("Entra en mensajesHandler.\n");
+
     if(signal == SIGUSR1){  // Mensaje para calculadores
 
-        // Recibimos el mensaje 
         msgErr = msgrcv(msgid, &message, sizeof(message), 0, 0);
+
+        //printf("Mensaje recibido para %d.\n", getpid());
 
         if(msgErr == -1)
             perror("ERROR: Error al recibir el mensaje: ");
         else if(msgErr == 0)
             printf("ERROR: Solo se recibió el tipo de mensaje.\n");
+        //else
+            //printf("Se leeyeron %d bytes del mensaje.\n", msgErr);
 
-        // Si el mensaje es del tipo de límites
         if(message.mesg_type == COD_LIMITES){
 
-            // Recojoemos los datos del mensaje
             sscanf(message.mesg_text, "%d %d", &inicioRango, &finalRango);
 
-            // Esperamos para no sobrecargar innecesariamente la cola de mensajería (hasta que el servidor comience a leer)
+            //printf("Rango recibido para %d: %d - %d\n", getpid(), inicioRango, finalRango);
+
             sleep(5);
 
-            // Iniciamos el contador
             tCalculo = 0;
             tInicioCalculo = clock();
 
-            // Recorremos nuestro rango asignado
             for(long int i = inicioRango; i <= finalRango; i++){
 
-                // Comprobamos si cada número del rango es primo
                 esPrimo = Comprobarsiesprimo(i);
                 if(esPrimo){
 
-                    // Mandamos el mensaje al servidor de nuevo pirmo encontrado, con el PID de este calculador y el primo encontrado
+                    //printf("Primo encontrado: %d\n", i);
+
                     do{
                         message.mesg_type = COD_RESULTADOS;
                         sprintf(message.mesg_text, "%d %d", getpid(), i);
@@ -544,15 +509,15 @@ void mensajesHandler(int signal){
                             perror("ERROR: Ha ocurrido un error al enviar el mensaje de nuevo número primo al servidor:");
                     }while(msgErr == -1);
 
+                    //printf("Mandamos desde el calculador %d al servidor %d el primo %d\n", getpid(), getppid(), i);
+
                 }
 
             }
 
-            // Al acabar de calcular paramos el contador y comprobamos los segundos que ha tardado
             tFinalCalculo = clock();
             tCalculo = ((double)(tFinalCalculo - tInicioCalculo)) / CLOCKS_PER_SEC;
 
-            // Mandamos al servidor que este calculador ya ha acabado con su PID y el tiempo que ha tardado
             do{
                 message.mesg_type = COD_FIN;
                 sprintf(message.mesg_text, "%d %lf", getpid(), tCalculo);
@@ -562,11 +527,9 @@ void mensajesHandler(int signal){
             }
             while(msgErr == -1);
 
-            // Finalizamos la ejecución del calculador
             exit(0);
 
         }
-        // Si la señal es SIGINT es que hemos recibido un CRL C del usuario y nos aseguramos de finalizar la ejecución de forma segura
         else if(signal == SIGINT){
 
             printf("\nFINALIZANDO EJECUCIÓN POR LA DETECCIÓN DE CTRL + C\n");
@@ -593,28 +556,22 @@ void mensajesHandler(int signal){
 
 }
 
-// Función con la que formateamos un informe para la función Informa()
 char *formateaPrimoEncontrado(char *cadenaCaracteres, int pidCalculador, char *cadenaCaracteres2, int primoEncontrado){
 
-    // Variable en la que almacenaremos el informe final
     char *cadenaFinal = (char*)malloc(sizeof(char));
 
-    // Variables en las que vamos a almacenar la transformación a cadena de caracteres de los dos enteros que pedimos por parámetro
     char varAuxCalculador[LONGITUD_MSG];
     char varAuxPrimo[LONGITUD_MSG];
 
-    // Índices de las cadenas de caracteres
     int indiceCadenaFinal = 0;
     int indiceCadenaCaracteres = 0;
     int indiceCalculador = 0;
     int indiceCadenaCaracteres2 = 0;
     int indicePrimo = 0;
 
-    // Volcamos los enteros a las variables de cadenas de caracteres
     sprintf(varAuxCalculador, "%d", pidCalculador);
     sprintf(varAuxPrimo, "%d", primoEncontrado);
 
-    // Recorremos la cadena de caracteres, y la incluímos en la cadena final con memoria dinámica (repetimos para las 4 cadenas, las 2 que pedimos y las 2 provenientes de enteros)
     while(cadenaCaracteres[indiceCadenaCaracteres] != '\0'){
 
         cadenaFinal[indiceCadenaFinal] = cadenaCaracteres[indiceCadenaCaracteres];
@@ -651,10 +608,8 @@ char *formateaPrimoEncontrado(char *cadenaCaracteres, int pidCalculador, char *c
 
     }
 
-    // Introducimos el final de cadena
     cadenaFinal[indiceCadenaFinal] = '\0';
 
-    // Retornamos la cadena
     return cadenaFinal;
 
 }
@@ -662,47 +617,36 @@ char *formateaPrimoEncontrado(char *cadenaCaracteres, int pidCalculador, char *c
 // Función con la que volcamos un número primo encontrado a un fichero, retorna 0 si todo ha ido bien y 1 si ha habido algún error
 int vuelcaPrimoAFichero(long int numeroPrimo, FILE *fichero){
 
-    // Variables en las que recogemos el código de error de la operación y en la que retornamos el código de error de nuestra función
     int errCode = 0;
     int retorno = 0;
 
-    // Escribimos el primo en el fichero correspondiente
     errCode = fprintf(fichero, "%d\n", numeroPrimo);
 
-    // Si hay error lo mostramos y activamos el error en la variable de retorno
     if(errCode < 0){
         printf("ERROR: Ha ocurrido un error al intentar volcar el primo %d al fichero %s.\n", numeroPrimo, NOMBRE_FICH);
         retorno = 1;
     }
 
-    // Retornamos si han ocurrido errores
     return retorno;
 
 }
 
-// Función con la que volcamos la cantidad de primos encontrados al fichero que lleva la cuenta de primos encontrados, retorna 0 si no hay errores y 1 si hay errores
 int vuelcaCantidadPrimos(long int cantidadPrimos){
 
-    // Variables en las que almacenamos el código de error de la operación y mandamos el código de error de nuestra función
     int errCode = 0;
     int retorno = 0;
 
-    // Abrimos el fichero que lleva la cuenta de los primos encontrados
     FILE *fichero = fopen(NOMBRE_FICH_CUENTA, "w");
 
-    // Escribimos la cuenta de primos que llevamos
     errCode = fprintf(fichero, "%d", cantidadPrimos);
 
-    // Cerramos el fichero
     fclose(fichero);
 
-    // Si hay error lo mostramos
     if(errCode < 0){
         printf("ERROR: Ha ocurrido un error al intentar volcar la cantidad de números primos (%d) al fichero %s.\n", cantidadPrimos, NOMBRE_FICH_CUENTA);
         retorno = 1;
     }
 
-    // Retornamos si ha habido error o no
     return retorno;
 
 }
